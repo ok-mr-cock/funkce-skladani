@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skládání funkcí</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--tx:#1c2233;--mut:#5d6580;--bd:#c3c9e0;--f:#2563eb;--g:#d9480f;--ok:#0f766e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151f;--card:#1b2030;--tx:#eef0f8;--mut:#9aa3c0;--bd:#3a4262;--f:#6ea0ff;--g:#ff9a62;--ok:#4fd1c5;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151f;--card:#1b2030;--tx:#eef0f8;--mut:#9aa3c0;--bd:#3a4262;--f:#6ea0ff;--g:#ff9a62;--ok:#4fd1c5;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:18px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px;-webkit-user-select:none;user-select:none}
+main{max-width:900px;margin:0 auto}
+h1{font-size:1.6rem;margin:.2em 0}
+p.sub{color:var(--mut);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:16px}
+h2{font-size:1rem;margin:0 0 10px;color:var(--mut);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{touch-action:none;cursor:grab;padding:12px 16px;border-radius:10px;border:2px solid var(--bd);background:var(--bg);font-size:1.15rem;min-height:48px}
+.chip.sel{border-color:var(--tx);box-shadow:0 0 0 3px color-mix(in srgb,var(--tx) 20%,transparent)}
+.ghost{position:fixed;z-index:99;pointer-events:none;opacity:.9;background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.slot{border:3px dashed var(--bd);border-radius:12px;padding:12px;min-height:84px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.slot.f{border-color:var(--f)}.slot.g{border-color:var(--g)}
+.slot.over{background:color-mix(in srgb,var(--tx) 10%,transparent)}
+.slot .nm{font-weight:700}
+.slot.f .nm{color:var(--f)}.slot.g .nm{color:var(--g)}
+.slot .val{font-size:1.3rem;min-height:1.6em}
+.slot .ph{color:var(--mut);font-size:1rem}
+.clr{align-self:flex-start;font:inherit;font-size:.85rem;border:0;background:none;color:var(--mut);text-decoration:underline;padding:4px 0;cursor:pointer}
+.res{font-size:1.5rem;overflow-x:auto;white-space:nowrap}
+.res b{color:var(--ok)}
+.res .lab{display:block;font-size:.85rem;color:var(--mut);font-weight:400}
+.mut{color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Skládání funkcí</h1>
+<p class="sub">Přetáhni funkční předpisy do polí <b style="color:var(--f)">f</b> a <b style="color:var(--g)">g</b>. Pod nimi se vypíše složená funkce f∘g. (Na dotykovém displeji jde také klepnout na předpis a pak na pole.)</p>
+
+<div class="card"><h2>Nabídka funkčních předpisů</h2><p class="mut" style="margin:0 0 10px;font-size:.9rem">Funkce po dvojicích za sebou jsou navzájem inverzní (např. x² a √x pro x ≥ 0). Funkce x, −x a 1/x jsou inverzní samy k sobě.</p><div class="chips" id="pal"></div></div>
+
+<div class="card"><h2>Volná pole</h2>
+<div class="slots">
+<div class="slot f" id="sf" data-k="f"></div>
+<div class="slot g" id="sg" data-k="g"></div>
+</div></div>
+
+<div class="card res" id="out"></div>
+<div class="card res" id="out2"></div>
+</main>
+<script>
+const p=a=>a==="x"?"x":"("+a+")";
+const F=[
+{t:"x",r:a=>a},
+{t:"x + 3",r:a=>p(a)+" + 3"},
+{t:"2x − 1",r:a=>"2·"+p(a)+" − 1"},
+{t:"−x",r:a=>"−"+p(a)},
+{t:"x²",r:a=>p(a)+"²"},
+{t:"x³",r:a=>p(a)+"³"},
+{t:"x² + 1",r:a=>p(a)+"² + 1"},
+{t:"1/x",r:a=>"1/"+p(a)},
+{t:"√x",r:a=>"√"+p(a)},
+{t:"|x|",r:a=>"|"+a+"|"},
+{t:"2ˣ",r:a=>"2^"+p(a)},
+{t:"x − 3",r:a=>p(a)+" − 3"},
+{t:"2x",r:a=>"2·"+p(a)},
+{t:"x/2",r:a=>p(a)+"/2"},
+{t:"(x + 1)/2",r:a=>"("+p(a)+" + 1)/2"},
+{t:"∛x",r:a=>"∛"+p(a)},
+{t:"log₂x",r:a=>"log₂"+p(a)}
+];
+const S={f:null,g:null};let sel=null;
+const pal=document.getElementById("pal");
+const ORDER=[0,3,7,1,11,12,13,2,14,4,8,5,15,10,16,9,6];
+ORDER.forEach(i=>{const o=F[i];const c=document.createElement("div");c.className="chip";c.textContent=o.t;c.dataset.i=i;pal.appendChild(c)});
+
+function drawSlot(k){
+  const el=document.getElementById("s"+k),v=S[k];
+  el.innerHTML=`<span class="nm">${k}(x) =</span>`+(v===null?`<span class="ph">přetáhni sem předpis</span>`:`<span class="val">${F[v].t}</span><button class="clr" data-c="${k}">odebrat</button>`);
+}
+function render(){
+  drawSlot("f");drawSlot("g");
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("sel",+c.dataset.i===sel));
+  const out=document.getElementById("out");
+  if(S.f===null||S.g===null){out.innerHTML=`<span class="mut">Vyplň obě pole, tady se objeví (f∘g)(x).</span>`;document.getElementById("out2").innerHTML=`<span class="lab">Tvar po úpravě</span><span class="mut">Objeví se po vyplnění obou polí.</span>`;return}
+  out.innerHTML=`(f∘g)(x) = f(g(x)) = <b>${F[S.f].r(F[S.g].t)}</b>`;
+  document.getElementById("out2").innerHTML=`<span class="lab">Tvar po úpravě</span>(f∘g)(x) = <b>${simplify(S.f,S.g)}</b>`;
+}
+const P={0:[0,1],1:[3,1],2:[-1,2],3:[0,-1],4:[0,0,1],5:[0,0,0,1],6:[1,0,1],11:[-3,1],12:[0,2],13:[0,.5],14:[.5,.5]};
+const sup=n=>String(n).replace(/\d/g,d=>"⁰¹²³⁴⁵⁶⁷⁸⁹"[d]);
+function mulp(a,b){const r=Array(a.length+b.length-1).fill(0);a.forEach((u,i)=>b.forEach((v,j)=>r[i+j]+=u*v));return r}
+function compp(f,g){let res=[0],pw=[1];f.forEach(c=>{const t=pw.map(v=>v*c);while(res.length<t.length)res.push(0);t.forEach((v,i)=>res[i]+=v);pw=mulp(pw,g)});return res}
+function terms(c,v){let s="";for(let i=c.length-1;i>=0;i--){const k=c[i];if(!k)continue;const t=v(i,Math.abs(k));s+=s?(k<0?" − ":" + ")+t:(k<0?"−":"")+t}return s||"0"}
+const vx=(k,a)=>k===0?String(a):(a===1?"":a)+(k===1?"x":"x"+sup(k));
+function polyStr(c){let D=1;while(D<=64&&!c.every(v=>Math.abs(v*D-Math.round(v*D))<1e-9))D*=2;const num=terms(c.map(v=>Math.round(v*D)),vx);if(D===1)return num;return (/ [+−] /.test(num)?"("+num+")":num)+"/"+D}
+const co=a=>a===1?"":a;
+const AT={
+7:(k,a)=>k===0?String(a):(a===1?"1":a)+"/x"+(k>1?sup(k):""),
+8:(k,a)=>k===0?String(a):co(a)+(k===1?"√x":k===2?"x":"x√x"),
+9:(k,a)=>k===0?String(a):co(a)+(k===2?"x²":"|x|"+(k>1?sup(k):"")),
+10:(k,a)=>k===0?String(a):(a===1?"":a+"·")+(k===1?"2ˣ":"2^("+k+"x)"),
+15:(k,a)=>k===0?String(a):co(a)+(k===1?"∛x":k===2?"∛(x²)":"x"),
+16:(k,a)=>k===0?String(a):(a===1?"":a+"·")+(k===1?"log₂x":"(log₂x)"+sup(k))};
+const FR={
+13:{7:"1/(2x)",8:"√x/2",9:"|x|/2",10:"2^(x − 1)",15:"∛x/2",16:"(log₂x)/2"},
+14:{7:"(x + 1)/(2x)",8:"(√x + 1)/2",9:"(|x| + 1)/2",10:"(2ˣ + 1)/2",15:"(∛x + 1)/2",16:"(log₂x + 1)/2"}};
+const T={
+"7,7":"x","7,8":"1/√x","7,9":"1/|x|","7,10":"2^(−x)","7,15":"1/∛x","7,16":"1/log₂x",
+"8,7":"1/√x","8,8":"⁴√x","8,9":"√|x|","8,10":"2^(x/2)","8,15":"⁶√x","8,16":"√(log₂x)",
+"9,7":"1/|x|","9,8":"√x","9,9":"|x|","9,10":"2ˣ","9,15":"|∛x|","9,16":"|log₂x|",
+"10,7":"2^(1/x)","10,8":"2^√x","10,9":"2^|x|","10,10":"2^(2ˣ)","10,15":"2^∛x","10,16":"x",
+"15,7":"1/∛x","15,8":"⁶√x","15,9":"∛|x|","15,10":"2^(x/3)","15,15":"⁹√x","15,16":"∛(log₂x)",
+"16,7":"−log₂x","16,8":"(log₂x)/2","16,9":"log₂|x|","16,10":"x","16,15":"(log₂x)/3","16,16":"log₂(log₂x)"};
+const Q={
+7:{3:"−1/x",4:"1/x²",5:"1/x³",12:"1/(2x)",13:"2/x",14:"2/(x + 1)"},
+8:{4:"|x|",5:"x√x"},
+9:{3:"|x|",4:"x²",5:"|x|³",6:"x² + 1"},
+15:{3:"−∛x",4:"∛(x²)",5:"x"},
+16:{4:"2·log₂|x|",5:"3·log₂x",12:"1 + log₂x",13:"log₂x − 1",14:"log₂(x + 1) − 1"}};
+const W={7:s=>"1/("+s+")",8:s=>"√("+s+")",9:s=>"|"+s+"|",15:s=>"∛("+s+")",16:s=>"log₂("+s+")"};
+function simplify(f,g){
+  if(P[f]){if(P[g])return polyStr(compp(P[f],P[g]));if(FR[f])return FR[f][g];return terms(P[f],AT[g])}
+  if(g===0)return F[f].t;
+  if(!P[g])return T[f+","+g];
+  if(f===10){const b=P[g][0],a=P[g][1];
+    if(P[g].length===2&&Number.isInteger(a)&&Number.isInteger(b)){const c=2**Math.abs(b),base=a===1?"2ˣ":a===-1?"2^(−x)":"2^("+a+"x)";return b>0?c+"·"+base:b<0?base+"/"+c:base}
+    return "2^("+polyStr(P[g])+")"}
+  return (Q[f]&&Q[f][g])||W[f](polyStr(P[g]));
+}
+function put(k,i){S[k]=i;sel=null;render()}
+
+let drag=null;
+pal.addEventListener("pointerdown",e=>{
+  const c=e.target.closest(".chip");if(!c)return;
+  drag={i:+c.dataset.i,x:e.clientX,y:e.clientY,moved:false,ghost:null,id:e.pointerId};
+  c.setPointerCapture(e.pointerId);
+});
+pal.addEventListener("pointermove",e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>8){
+    drag.moved=true;const g=document.createElement("div");g.className="chip ghost";g.textContent=F[drag.i].t;document.body.appendChild(g);drag.ghost=g;
+  }
+  if(drag.moved){
+    drag.ghost.style.left=(e.clientX-30)+"px";drag.ghost.style.top=(e.clientY-30)+"px";
+    const s=slotAt(e.clientX,e.clientY);
+    document.querySelectorAll(".slot").forEach(x=>x.classList.toggle("over",x===s));
+  }
+});
+function slotAt(x,y){const el=document.elementFromPoint(x,y);return el?el.closest(".slot"):null}
+function endDrag(e,cancel){
+  if(!drag||e.pointerId!==drag.id)return;
+  document.querySelectorAll(".slot").forEach(x=>x.classList.remove("over"));
+  if(drag.moved){
+    const s=cancel?null:slotAt(e.clientX,e.clientY);
+    drag.ghost.remove();
+    if(s)put(s.dataset.k,drag.i);
+  }else if(!cancel){sel=(sel===drag.i)?null:drag.i;render()}
+  drag=null;
+}
+pal.addEventListener("pointerup",e=>endDrag(e,false));
+pal.addEventListener("pointercancel",e=>endDrag(e,true));
+document.querySelectorAll(".slot").forEach(s=>s.addEventListener("click",e=>{
+  const b=e.target.closest(".clr");
+  if(b){S[b.dataset.c]=null;render();return}
+  if(sel!==null)put(s.dataset.k,sel);
+}));
+render();
+</script>
+</body>
+</html>
